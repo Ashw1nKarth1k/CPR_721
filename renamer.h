@@ -109,6 +109,8 @@ private:
 	// Entry contains: ready bit
 	/////////////////////////////////////////////////////////////////////
 	bool *prf_rdy_bit;
+	bool *prf_unmapped_bit;
+	uint64_t *prf_usage_counter;
 	/////////////////////////////////////////////////////////////////////
 	// Structure 7: Global Branch Mask (GBM)
 	//
@@ -162,6 +164,24 @@ private:
 		uint64_t saved_flist_head;
 		uint64_t saved_GBM;
 	}*branch_checkpoints;
+	//=======MOD_CPR===================
+	//-----Structure for Checkpoints---------------
+	struct Checkpoints
+	{
+		uint64_t *chkpt_RMT;
+		uint64_t *chkpt_unmapped_bit;
+		uint64_t uncomp_inst_cnt,load_cnt,store_cnt,br_cnt;
+		bool amo,csr,exe;
+	}
+	struct Checkpoint_buffer
+	{
+		Checkpoints *Chk_buffer;
+		//bool *Chk_valid;
+		uint64_t Chkbuf_head;
+		uint64_t Chkbuf_tail;
+		uint64_t Chkbuf_size;
+	}chk_buffer;
+	//=======MOD_CPR===================
 	/////////////////////////////////////////////////////////////////////
 	// Private functions.
 	// e.g., a generic function to copy state from one map to another.
@@ -235,7 +255,7 @@ public:
 	// for all branches in the current rename bundle.
 	/////////////////////////////////////////////////////////////////////
 	bool stall_branch(uint64_t bundle_branch);
-
+	bool stall_checkpoint(uint64_t bundle_chkpts);
 	/////////////////////////////////////////////////////////////////////
 	// This function is used to get the branch mask for an instruction.
 	/////////////////////////////////////////////////////////////////////
@@ -285,7 +305,7 @@ public:
 	// 2. checkpointed Free List head pointer and its phase bit
 	// 3. checkpointed GBM
 	/////////////////////////////////////////////////////////////////////
-	uint64_t checkpoint();
+	void checkpoint();
 
 	//////////////////////////////////////////
 	// Functions related to Dispatch Stage. //
