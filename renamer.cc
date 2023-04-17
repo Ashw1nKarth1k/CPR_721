@@ -2,6 +2,7 @@
 #include<stdio.h>
 #include "renamer.h"
 #include <bits/stdc++.h> 
+#include "pipeline.h"
 using namespace std;
 
 renamer::renamer(uint64_t n_log_regs, uint64_t n_phys_regs, uint64_t n_branches, uint64_t n_active):
@@ -232,14 +233,14 @@ void renamer::checkpoint()
 	for(uint64_t i=0;i<num_log_regs;i++)
 	{
 		//-----Checkpointing RMT--------
-		chk_buffer.Chk_buffer[Chkbuf_tail].chkpt_RMT[i]=rmt[i];
+		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].chkpt_RMT[i]=rmt[i];
 		//-----Incrementing corresponding usage counters of the phy regs
 		prf_usage_counter[rmt[i]]++;
 	}
 	for(uint64_t i=0;i<num_phys_regs;i++)
 	{
 		//-----Checkpointing unmapped bit of phy regs-------
-		chk_buffer.Chk_buffer[Chkbuf_tail].chkpt_unmapped_bit[i]=prf_unmapped_bit[i];
+		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].chkpt_unmapped_bit[i]=prf_unmapped_bit[i];
 	}
 	chk_buffer.Chkbuf_tail++;
 	if(chk_buffer.Chkbuf_tail==num_branches)
@@ -250,6 +251,32 @@ void renamer::checkpoint()
 	instr_renamed_since_last_checkpoint=0;
 }
 
+uint64_t renamer::get_checkpoint_ID(bool load, bool store, bool branch, bool amo, bool csr)
+{
+	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].uncomp_inst_cnt++;
+	if(load)
+	{
+		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].load_cnt++;
+	}
+	else if(store)
+	{
+		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].store_cnt++;
+	}
+	else if(branch)
+	{
+		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].br_cnt++;
+	}
+	else if(amo)
+	{
+		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].amo=true;
+	}
+	else if(csr)
+	{
+		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].csr=true;
+	}
+	return chk_buffer.Chkbuf_tail-1;
+}
+//=============MOD_CPR==============================
 bool renamer::stall_dispatch(uint64_t bundle_inst)
 {
 	//printf("----------------------------stall_dispatch---------------------\n");
@@ -328,10 +355,10 @@ void renamer::write(uint64_t phys_reg, uint64_t value)
 	prf[phys_reg]=value;
 }
 
-void renamer::set_complete(uint64_t AL_index)
+void renamer::set_complete(uint64_t chkpt_ID)
 {
 	//printf("---------------------------set_complete-----------------------\n");
-	active_List.act_list[AL_index].comp_bit=1;
+	chk_buffer.Chk_buffer[chkpt_ID].uncomp_inst_cnt--;
 }
 
 void renamer::resolve( uint64_t AL_index, uint64_t branch_ID, bool correct)
@@ -408,11 +435,8 @@ void renamer::resolve( uint64_t AL_index, uint64_t branch_ID, bool correct)
 			
 	}
 }
-
-bool renamer::precommit(bool &completed,
-                       bool &exception, bool &load_viol, bool &br_misp, bool &val_misp,
-	               bool &load, bool &store, bool &branch, bool &amo, bool &csr,
-		       uint64_t &PC)
+//==========================MOD_CPR===================================================
+bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores, uint64_t &num_branches, bool &amo, bool &csr, bool &exception)
 			   {	
 			   //printf("---------------------precommit---------------------------------\n");
 			//	printf("active_List.act_head: %d\n", active_List.act_head);
@@ -428,7 +452,7 @@ bool renamer::precommit(bool &completed,
 			//printf("Load vio: %d\n", active_List.act_list[active_List.act_head].load_vio);
 			//printf("Branch mis: %d\n", active_List.act_list[active_List.act_head].branch_mis);
 			//printf("Value mis: %d\n", active_List.act_list[active_List.act_head].val_mis);
-			if(active_List.act_size!=0)
+			/*if(active_List.act_size!=0)
 			{
 				completed=active_List.act_list[active_List.act_head].comp_bit;
 				exception=active_List.act_list[active_List.act_head].exe_bit;
@@ -446,8 +470,31 @@ bool renamer::precommit(bool &completed,
 			else
 			{
 				return false;
-			}
+			}*/
+			if(chk_buffer.Chkbuf_size>1)
+			{
+				chkpt_id=chk_buffer.Chkbuf_head;
+				num_loads=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].load_cnt;
+				num_stores=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].store_cnt;
+				num_branches=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].br_cnt;
+				amo=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].amo;
+				csr=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].csr;
+				exception=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].exe;
+				if(chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].uncomp_inst==0)
+				{
+					return true;
+				}
+				else
+				{
+					return false;
+				}
 			   }
+			else
+			{
+				return false
+			}
+		}
+	//===============================MOD_CPR=============================================
 			   
 
 void renamer::commit()
@@ -495,10 +542,10 @@ void renamer::squash()
 	GBM=0;
 
 }
-void renamer::set_exception(uint64_t AL_index)
+void renamer::set_exception(uint64_t chkpt_ID)
 {
 	//printf("--------------------------set_exception------------------------\n");
-	active_List.act_list[AL_index].exe_bit=true;
+	chk_buffer.Chk_buffer[chkpt_ID].exe=true;
 }
 
 void renamer::set_load_violation(uint64_t AL_index)

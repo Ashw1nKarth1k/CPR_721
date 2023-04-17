@@ -198,6 +198,8 @@ void pipeline_t::rename2() {
 			PAY.buf[index].C_phys_reg=REN->rename_rdst(PAY.buf[index].C_log_reg);
 		}
 		instr_renamed_since_last_checkpoint++;
+		//------getting checkpoint ID for the instruction----
+		PAY.buf[index].chkpt_ID=REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags),IS_STORE(PAY.buf[index].flags),IS_BRANCH(PAY.buf[index].flags),IS_AMO(PAY.buf[index].flags),IS_CSR(PAY.buf[index].flags));
 	//========MOD_CPR==========================
 		//inserting checkpoint after renaming for Serialising Instructions and Branch Misprediction
 		if(IS_AMO(PAY.buf[index].flags)||IS_CSR(PAY.buf[index].flags))
