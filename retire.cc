@@ -47,7 +47,10 @@ void pipeline_t::retire(size_t& instret) {
    //      is squashed including the offending instruction.
 
    // FIX_ME #17a BEGIN
-   head_valid=REN->precommit(completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr,offending_PC);
+  // head_valid=REN->precommit(completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr,offending_PC);
+  //======MOD_CPR===============
+   head_valid=REN->precommit(RETSTATE.chkpt_id, RETSTATE.num_loads_left, RETSTATE.num_stores_left, RETSTATE.num_branches_left, RETSTATE.amo, RETSTATE.csr, RETSTATE.exception);
+  //======MOD_CPR===============
    // FIX_ME #17a END
 
    if (head_valid && completed) {    // AL head exists and completed
