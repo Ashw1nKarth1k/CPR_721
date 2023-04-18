@@ -172,7 +172,7 @@ private:
 		uint64_t *chkpt_unmapped_bit;
 		uint64_t uncomp_inst_cnt,load_cnt,store_cnt,br_cnt;
 		bool amo,csr,exe;
-	}chk_pts;
+	};
 	
 	struct Checkpoint_buffer
 	{
