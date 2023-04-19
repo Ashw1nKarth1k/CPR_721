@@ -215,7 +215,7 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
 	//printf("--------------------------rename_rdst------------------------\n");
 	//prf_usage_counter[rmt[log_reg]]++;
 	//prf_unmapped_bit[rmt[log_reg]]=true;
-	inc_usage_counter(rmt[log_reg]);
+	unmap(rmt[log_reg]);
 	assert(free_List.f_size!=0);
 	uint64_t phy_name=free_List.f_preg[free_List.f_head];
 	free_List.f_size--;
@@ -225,11 +225,37 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
 		free_List.f_head=0;
 	}
 	prf_rdy_bit[free_List.f_preg[free_List.f_head]]=0;
-	rmt[log_reg]=phy_name;
-	//prf_unmapped_bit[rmt[log_reg]]=false;
+    rmt[log_reg]=phy_name;
+	map(rmt[log_reg]);
+	inc_usage_counter(rmt[log_reg]);
 	return phy_name;
 }
 //=======MOD_CPR================================
+//===MOD_CPR_AV19===
+//Clear the unmapped bit of physical register “phys_reg”
+
+void renamer::map(uint64_t phys_reg)
+{
+prf_unmapped_bit[phys_reg]=false;
+}
+
+// Set the unmapped bit of physical register “phys_reg”.
+// Check if phys_reg’s usage counter is 0; if so,
+// push phys_reg onto the Free List.
+
+void renamer::unmap(uint64_t phys_reg)
+{
+ prf_unmapped_bit[phys_reg]=true;
+ if (prf_usage_counter[phys_reg]==0)
+	{
+free_List.f_tail = phys_reg;
+free.List.f_tail++;
+	if(free_List.f_tail==num_phys_regs-num_log_regs)
+	{
+		free_List.f_tail=0;
+	}
+	}
+}
 void renamer::checkpoint()
 {
 	//printf("----------------------creating checkpoint----------------------\n");
