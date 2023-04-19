@@ -133,6 +133,32 @@ bool renamer::stall_reg( uint64_t bundle_dst)
 		return false;
 	}
 }
+//===MOD_CPR_AV19===
+//Clear the unmapped bit of physical register “phys_reg”
+
+void renamer::map(uint64_t phys_reg)
+{
+	prf_unmapped_bit[phys_reg]=false;
+}
+
+// Set the unmapped bit of physical register “phys_reg”.
+// Check if phys_reg’s usage counter is 0; if so,
+// push phys_reg onto the Free List.
+
+void renamer::unmap(uint64_t phys_reg)
+{
+ prf_unmapped_bit[phys_reg]=true;	
+ 	if (prf_usage_counter[phys_reg]==0)
+	{
+	free_List.f_tail = phys_reg;	
+	free.List.f_tail++;
+	if(free_List.f_tail==num_phys_regs-num_log_regs)
+	{
+		free_List.f_tail=0;
+	}
+	}	
+}
+
 //----To stall when there are no checkpoints available for the branches
 bool renamer::stall_branch( uint64_t bundle_branch)
 {
