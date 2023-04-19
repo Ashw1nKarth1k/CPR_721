@@ -26,6 +26,9 @@ private:
 			uint64_t f_tail;
 			uint64_t f_size;
 		}free_List;
+	//===MOD_CPR_AV19===
+	void renamer::map(uint64_t phys_reg);
+	void renamer::unmap(uint64_t phys_reg);
 	//	
 	// Entry contains: physical register number
 	//
