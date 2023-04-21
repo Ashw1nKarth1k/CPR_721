@@ -361,6 +361,8 @@ void renamer::set_complete(uint64_t chkpt_ID)
 	chk_buffer.Chk_buffer[chkpt_ID].uncomp_inst_cnt--;
 }
 
+//===MOD_CPR_AV_20===
+/*
 void renamer::resolve( uint64_t AL_index, uint64_t branch_ID, bool correct)
 {
 	//printf("-----------------------------resolve-------------------------\n");
@@ -434,7 +436,52 @@ void renamer::resolve( uint64_t AL_index, uint64_t branch_ID, bool correct)
 		}*/
 			
 	}
+}*/
+	
+//===MOD_CPR_AV_20===START
+	
+uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads, uint64_t &total_stores, uint64_t &total_branches)
+{
+	if(next==true)
+	{
+		chkpt_id = (chkpt_id+1)%chk_buffer.Chkbuf_size;
+	}
+	
+	//TODO assert - To check if checkpoint ID is between checkpoint buffer head and tail
+	 rmt = chk_buffer.Chk_buffer[chkpt_id].chkpt_RMT;
+	
+	uint64_t squash_mask = 1;
+	uint64_t youngest_chkpt =0;
+	
+	if(chk_buffer.Chkbuf_tail==0)
+		youngest_chkpt = chk_buffer.Chkbuf_size -1;
+	else
+		youngest_chkpt = chk_buffer.Chkbuf_tail -1;
+	
+	uint64_t z = (youngest_chkpt - chkpt_id);
+	for (uint64_t i=0;i<youngest_chkpt;i++)
+	{
+		squash_mask << 1;
+		if(z !=0)
+		{
+			squash_mask = squash_mask | 1;
+			z -- ;
+		}
+		
+	}
+	//Rollback checkpoint preservation
+	
+	uint64_t id = (id + 1) % chk_buffer.Chkbuf_size;
+    	while (id != chk_buffer.Chkbuf_tail)
+    	{
+        	id = (id + 1) % checkPointBuffer.size;
+    	}
+	id = chk_buffer.Chkbuf_head;
+	
+	return squash_mask;
 }
+//===MOD_CPR_AV_20===END
+	
 //==========================MOD_CPR===================================================
 bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores, uint64_t &num_branches, bool &amo, bool &csr, bool &exception)
 			   {	
