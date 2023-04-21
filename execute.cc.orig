@@ -106,14 +106,14 @@ void pipeline_t::execute(unsigned int lane_number) {
             }
          }
       }
-      else if (!IS_AMO(PAY.buf[index].flags) && !IS_CSR(PAY.buf[index].flags)) {
+      else {
          // Execute the ALU-type instruction on the ALU.
          try {
             alu(index);
          }
          // Catch exceptions thrown by the ALU.
          catch (trap_t& t){
-            unsigned int al_index = PAY.buf[index].chkpt_id;
+            unsigned int al_index = PAY.buf[index].chkpt_ID;
             reg_t epc = PAY.buf[index].pc;
             ifprintf(logging_on,execute_log, "Cycle %" PRIcycle ": core %3d: exception refernce thrown from unknown source %s, epc 0x%016" PRIx64 " al_index %u\n", cycle, id, t.name(), epc, al_index);
             // Below is the only three traps the ALU could throw
@@ -274,7 +274,7 @@ void pipeline_t::load_replay() {
       // 2. Set the completed bit for this instruction in the Active List.
 
       // FIX_ME #18b BEGIN
-		REN->set_complete(PAY.buf[index].chkpt_id);
+		REN->set_complete(PAY.buf[index].AL_index);
       // FIX_ME #18b END
    }
 }

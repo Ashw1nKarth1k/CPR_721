@@ -149,7 +149,8 @@ private:
 	// 1 to 64.
 	/////////////////////////////////////////////////////////////////////
 	uint64_t GBM;
-
+	void unmap(uint64_t phys_reg);
+	void map(uint64_t phys_reg);
 	/////////////////////////////////////////////////////////////////////
 	// Structure 8: Branch Checkpoints
 	//
@@ -169,7 +170,7 @@ private:
 	struct Checkpoints
 	{
 		uint64_t *chkpt_RMT;
-		uint64_t *chkpt_unmapped_bit;
+		bool *chkpt_unmapped_bit;
 		uint64_t uncomp_inst_cnt,load_cnt,store_cnt,br_cnt;
 		bool amo,csr,exe;
 	};
@@ -401,11 +402,11 @@ public:
 	// Write a value into the indicated physical register.
 	/////////////////////////////////////////////////////////////////////
 	void write(uint64_t phys_reg, uint64_t value);
-	uint64_t renamer::get_checkpoint_ID(bool load, bool store, bool branch, bool amo, bool csr)
+	uint64_t get_checkpoint_ID(bool load, bool store, bool branch, bool amo, bool csr);
 	/////////////////////////////////////////////////////////////////////
 	// Set the completed bit of the indicated entry in the Active List.
 	/////////////////////////////////////////////////////////////////////
-	void set_complete(uint64_t AL_index);
+	void set_complete(uint64_t chkpt_ID);
 
 	/////////////////////////////////////////////////////////////////////
 	// This function is for handling branch resolution.
@@ -492,7 +493,7 @@ public:
 	// * csr flag (whether or not instr. is a system instruction)
 	// * program counter of the instruction
 	/////////////////////////////////////////////////////////////////////
-	bool precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores, uint64_t &num_branches, bool &amo, bool &csr, bool &exception)
+	bool precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores, uint64_t &num_branches, bool &amo, bool &csr, bool &exception);
 
 	/////////////////////////////////////////////////////////////////////
 	// This function commits the instruction at the head of the Active List.

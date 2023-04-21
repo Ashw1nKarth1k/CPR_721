@@ -1,9 +1,18 @@
 #include "pipeline.h"
 #include "trap.h"
 #include "mmu.h"
-
+#include <ctime>
 //====MOD_CPR_AV====
 //Added extra parameter in pipeline_t::retire
+//Scope of this function is just this file
+static void update_timer(state_t* state, size_t instret)
+{
+  uint64_t count0 = (uint64_t)(uint32_t)state->count;
+  state->count += instret;
+  uint64_t before = count0 - state->compare;
+  if (int64_t(before ^ (before + instret)) < 0)
+    state->sr |= (1 << (IRQ_TIMER + SR_IP_SHIFT));
+}
 void pipeline_t::retire(size_t& instret, size_t instret_limit) {
    bool head_valid;
    bool completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr;
@@ -19,6 +28,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
       if (RETSTATE.state == retire_state_e::RETIRE_IDLE)
       {
          proceed = REN->precommit(RETSTATE.chkpt_id, RETSTATE.num_loads_left, RETSTATE.num_stores_left, RETSTATE.num_branches_left, RETSTATE.amo, RETSTATE.csr, RETSTATE.exception);
+		 offending_PC=PAY.buf[PAY.head].pc;
          if(proceed == false) {
             return;
          }
@@ -112,7 +122,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
          }
          for(unsigned int x =0;x<RETIRE_WIDTH;x++){
             if(RETSTATE.num_branches_left != 0){
-               FetchUnit->commit();
+               FetchUnit->commit(PAY.buf[PAY.head].pred_tag);
                RETSTATE.num_branches_left--;
             }
             else if(RETSTATE.num_branches_left == 0){
@@ -135,7 +145,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
       }
       else if (RETSTATE.state == retire_state_e::RETIRE_FINALIZE)
       {
-         while((PAY.buf[PAY.head].checkpoint_ID == RETSTATE.chkpt_id) || (PAY.head == PAY.tail)){
+         while((PAY.buf[PAY.head].chkpt_id == RETSTATE.chkpt_id) || (PAY.head == PAY.tail)){
             if (IS_FP_OP(PAY.buf[PAY.head].flags)) {
                // post the FP exception bit to CSR fflags (the Accrued Exception Flags)
                get_state()->fflags |= PAY.buf[PAY.head].fflags;

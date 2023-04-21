@@ -51,7 +51,7 @@ void pipeline_t::rename2() {
    unsigned int i;
    unsigned int index;
    unsigned int bundle_dst, bundle_branch;
-
+	db_t* actual;
    // Stall the rename2 sub-stage if either:
    // (1) There isn't a current rename bundle.
    // (2) The Dispatch Stage is stalled.
@@ -171,6 +171,7 @@ void pipeline_t::rename2() {
 	  if(IS_AMO(PAY.buf[index].flags)||IS_CSR(PAY.buf[index].flags))
 	  {
 		  REN->checkpoint();
+		  instr_renamed_since_last_checkpoint=0;
 	  }
 	  else if(PAY.buf[index].good_instruction)
 	  {
@@ -178,6 +179,7 @@ void pipeline_t::rename2() {
 		 if(actual->a_exception)
 		 {
 			 REN->checkpoint();
+			 instr_renamed_since_last_checkpoint=0;
 		 }
 	  }
 	  //======MOD_CPR============================
@@ -199,12 +201,13 @@ void pipeline_t::rename2() {
 		}
 		instr_renamed_since_last_checkpoint++;
 		//------getting checkpoint ID for the instruction----
-		PAY.buf[index].chkpt_ID=REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags),IS_STORE(PAY.buf[index].flags),IS_BRANCH(PAY.buf[index].flags),IS_AMO(PAY.buf[index].flags),IS_CSR(PAY.buf[index].flags));
+		PAY.buf[index].chkpt_id=REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags),IS_STORE(PAY.buf[index].flags),IS_BRANCH(PAY.buf[index].flags),IS_AMO(PAY.buf[index].flags),IS_CSR(PAY.buf[index].flags));
 	//========MOD_CPR==========================
 		//inserting checkpoint after renaming for Serialising Instructions and Branch Misprediction
 		if(IS_AMO(PAY.buf[index].flags)||IS_CSR(PAY.buf[index].flags))
 		{
 		  REN->checkpoint();
+		  instr_renamed_since_last_checkpoint=0;
 		}
 		else if(PAY.buf[index].good_instruction)
 		{
@@ -212,6 +215,7 @@ void pipeline_t::rename2() {
 		 if((actual->a_next_pc!=PAY.buf[index].next_pc))
 		 {
 			 REN->checkpoint();
+			 instr_renamed_since_last_checkpoint=0;
 		 }
 		}
 	//=======MOD_CPR===========================
