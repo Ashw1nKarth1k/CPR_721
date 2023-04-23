@@ -1,6 +1,5 @@
 #include<inttypes.h>
 #include<stdio.h>
-#include "renamer.h"
 #include <bits/stdc++.h> 
 #include "pipeline.h"
 using namespace std;
@@ -61,6 +60,8 @@ for (uint64_t i=0;i<num_log_regs;i++)
 //---------- PRF -----------------------------------------------
 	prf=new uint64_t[num_phys_regs];
 	prf_rdy_bit= new bool[num_phys_regs];
+	prf_unmapped_bit=new bool[num_phys_regs];
+	prf_usage_counter=new uint64_t[num_phys_regs];
 //-----Initialising prf ready bits as 1
 	for( uint64_t i=0;i<num_phys_regs;i++)
 	{
@@ -91,7 +92,7 @@ for (uint64_t i=0;i<num_log_regs;i++)
 	checkpoint();
 for (uint64_t i=0;i<num_log_regs;i++)
 {	
-	chk_buffer.Chk_buffer[0].chkpt_RMT=i;
+	chk_buffer.Chk_buffer[0].chkpt_RMT[i]=i;
 }
 //==================MOD_CPR================================
 
@@ -121,44 +122,18 @@ renamer::~renamer()
 //----To stall when we dont have enough free physical registers
 bool renamer::stall_reg( uint64_t bundle_dst)
 {
-	//printf("---------------------------Stall_reg-------------------\n");
+	printf("---------------------------Stall_reg-------------------\n");
 	if(free_List.f_size<bundle_dst)
 	{
-	//	printf(" Stall_reg: No free space in free list\n");
+		//printf(" Stall_reg: No free space in free list\n");
 		return true;
 	}
 	else 
 	{
-	//	printf("Stall_reg: free_list is available\n");
+		//printf("Stall_reg: free_list is available\n");
 		return false;
 	}
 }
-//===MOD_CPR_AV19===
-//Clear the unmapped bit of physical register “phys_reg”
-
-void renamer::map(uint64_t phys_reg)
-{
-	prf_unmapped_bit[phys_reg]=false;
-}
-
-// Set the unmapped bit of physical register “phys_reg”.
-// Check if phys_reg’s usage counter is 0; if so,
-// push phys_reg onto the Free List.
-
-void renamer::unmap(uint64_t phys_reg)
-{
- prf_unmapped_bit[phys_reg]=true;	
- 	if (prf_usage_counter[phys_reg]==0)
-	{
-	free_List.f_tail = phys_reg;	
-	free.List.f_tail++;
-	if(free_List.f_tail==num_phys_regs-num_log_regs)
-	{
-		free_List.f_tail=0;
-	}
-	}	
-}
-
 //----To stall when there are no checkpoints available for the branches
 bool renamer::stall_branch( uint64_t bundle_branch)
 {
@@ -176,7 +151,7 @@ bool renamer::stall_branch( uint64_t bundle_branch)
 	}
 	if (bundle_branch>avail_checkpoints)
 	{
-	//	printf(" stall_branch: CHECKPOINT branch NOT available\n");
+		//printf(" stall_branch: CHECKPOINT branch NOT available\n");
 		return true;
 	}
 	else
@@ -190,7 +165,7 @@ bool renamer::stall_branch( uint64_t bundle_branch)
 //--To stall renaming when there are not enough checkpoints available
 bool renamer::stall_checkpoint(uint64_t bundle_chkpts)
 {
-	//printf("----------------------------stall_checkpoint---------------------\n");
+	printf("----------------------------stall_checkpoint---------------------\n");
 	if(bundle_chkpts>num_branches-chk_buffer.Chkbuf_size)
 	{
 		return true;
@@ -212,11 +187,11 @@ void renamer::dec_usage_counter(uint64_t phys_reg)
 	if((prf_unmapped_bit[phys_reg]==true)&&(prf_usage_counter==0))
 	{
 		free_List.f_size++;
-		free_List.f_preg[f_tail]=phys_reg;
+		free_List.f_preg[free_List.f_tail]=phys_reg;
 		free_List.f_tail++;
 		if(free_List.f_tail==num_phys_regs-num_log_regs)
 		{
-			free_List_f_tail=0;
+			free_List.f_tail=0;
 		}
 	}
 }
@@ -235,13 +210,36 @@ uint64_t renamer::rename_rsrc(uint64_t log_reg)
 	inc_usage_counter(rmt[log_reg]);
 	return rmt[log_reg];
 }
+void renamer::map(uint64_t phys_reg)
+{
+prf_unmapped_bit[phys_reg]=false;
+}
+
+// Set the unmapped bit of physical register “phys_reg”.
+// Check if phys_reg’s usage counter is 0; if so,
+// push phys_reg onto the Free List.
+
+void renamer::unmap(uint64_t phys_reg)
+{
+ prf_unmapped_bit[phys_reg]=true;
+ if(prf_usage_counter[phys_reg]==0)
+	{
+		free_List.f_size++;
+		free_List.f_preg[free_List.f_tail]=phys_reg;
+		free_List.f_tail++;
+		if(free_List.f_tail==num_phys_regs-num_log_regs)
+		{
+			free_List.f_tail=0;
+		}
+	}
+}
 //---- Renaming Producers ----------
 uint64_t renamer::rename_rdst(uint64_t log_reg)
 {
 	//printf("--------------------------rename_rdst------------------------\n");
 	//prf_usage_counter[rmt[log_reg]]++;
 	//prf_unmapped_bit[rmt[log_reg]]=true;
-	inc_usage_counter(rmt[log_reg]);
+	unmap(rmt[log_reg]);
 	assert(free_List.f_size!=0);
 	uint64_t phy_name=free_List.f_preg[free_List.f_head];
 	free_List.f_size--;
@@ -250,12 +248,15 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
 	{
 		free_List.f_head=0;
 	}
-	prf_rdy_bit[free_List.f_preg[free_List.f_head]]=0;
-	rmt[log_reg]=phy_name;
-	//prf_unmapped_bit[rmt[log_reg]]=false;
+	prf_rdy_bit[phy_name]=0;
+    rmt[log_reg]=phy_name;
+	map(rmt[log_reg]);
+	inc_usage_counter(rmt[log_reg]);
 	return phy_name;
 }
 //=======MOD_CPR================================
+//===MOD_CPR_AV19===
+//Clear the unmapped bit of physical register “phys_reg”
 void renamer::checkpoint()
 {
 	//printf("----------------------creating checkpoint----------------------\n");
@@ -294,39 +295,52 @@ void renamer::checkpoint()
 		//-----Checkpointing unmapped bit of phy regs-------
 		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].chkpt_unmapped_bit[i]=prf_unmapped_bit[i];
 	}
+	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].uncomp_inst_cnt=0;
+	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].load_cnt=0;
+	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].store_cnt=0;
+	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].br_cnt=0;
+	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].amo=false;
+	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].csr=false;
+	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail].exe=false;
 	chk_buffer.Chkbuf_tail++;
 	if(chk_buffer.Chkbuf_tail==num_branches)
 	{
-		Chkbuf_tail=0;
+		chk_buffer.Chkbuf_tail=0;
 	}
 	chk_buffer.Chkbuf_size++;
-	instr_renamed_since_last_checkpoint=0;
+	//instr_renamed_since_last_checkpoint=0;
 }
 
 uint64_t renamer::get_checkpoint_ID(bool load, bool store, bool branch, bool amo, bool csr)
 {
-	chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].uncomp_inst_cnt++;
+	//printf("getting checkpoint_ID :%d\n",chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].br_cnt);
+	chk_buffer.Chk_buffer[((chk_buffer.Chkbuf_tail==0)?num_branches:chk_buffer.Chkbuf_tail)-1].uncomp_inst_cnt++;
 	if(load)
 	{
-		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].load_cnt++;
+		chk_buffer.Chk_buffer[((chk_buffer.Chkbuf_tail==0)?num_branches:chk_buffer.Chkbuf_tail)-1].load_cnt++;
 	}
 	else if(store)
 	{
-		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].store_cnt++;
+		chk_buffer.Chk_buffer[((chk_buffer.Chkbuf_tail==0)?num_branches:chk_buffer.Chkbuf_tail)-1].store_cnt++;
 	}
 	else if(branch)
 	{
-		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].br_cnt++;
+		chk_buffer.Chk_buffer[((chk_buffer.Chkbuf_tail==0)?num_branches:chk_buffer.Chkbuf_tail)-1].br_cnt++;
 	}
 	else if(amo)
 	{
-		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].amo=true;
+		chk_buffer.Chk_buffer[((chk_buffer.Chkbuf_tail==0)?num_branches:chk_buffer.Chkbuf_tail)-1].amo=true;
 	}
 	else if(csr)
 	{
-		chk_buffer.Chk_buffer[chk_buffer.Chkbuf_tail-1].csr=true;
+		chk_buffer.Chk_buffer[((chk_buffer.Chkbuf_tail==0)?num_branches:chk_buffer.Chkbuf_tail)-1].csr=true;
 	}
-	return chk_buffer.Chkbuf_tail-1;
+	if(chk_buffer.Chkbuf_tail==0){
+		printf("getting checkpoint_ID :%d\n",num_branches-1);
+		return num_branches-1;
+	}
+	printf("getting checkpoint_ID :%d\n",chk_buffer.Chkbuf_tail-1);
+	return (chk_buffer.Chkbuf_tail-1);
 }
 //=============MOD_CPR==============================
 bool renamer::stall_dispatch(uint64_t bundle_inst)
@@ -411,7 +425,7 @@ void renamer::write(uint64_t phys_reg, uint64_t value)
 
 void renamer::set_complete(uint64_t chkpt_ID)
 {
-	//printf("---------------------------set_complete-----------------------\n");
+	printf("---------------------------set_complete----------------------- :%d\n",chkpt_ID);
 	chk_buffer.Chk_buffer[chkpt_ID].uncomp_inst_cnt--;
 }
 
@@ -492,18 +506,40 @@ void renamer::resolve( uint64_t AL_index, uint64_t branch_ID, bool correct)
 //=================MOD_CPR=================
 void renamer::free_checkpoint()
 {
-	//======poping the head of the checkpoint buffer (freeing the oldest checkpoint================
+	printf("======poping the head of the checkpoint buffer (freeing the oldest checkpoint================");
+	//chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].load_cnt=0;
+	
 	chk_buffer.Chkbuf_head++;
 	if(chk_buffer.Chkbuf_head==num_branches)
 	{
 		chk_buffer.Chkbuf_head=0;
 	}
+	chk_buffer.Chkbuf_size--;
 }
 //===================MOD_CPR==================
 //==========================MOD_CPR===================================================
-bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores, uint64_t &num_branches, bool &amo, bool &csr, bool &exception)
+bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores, uint64_t &num_branch, bool &amo, bool &csr, bool &exception)
 			   {	
-			   //printf("---------------------precommit---------------------------------\n");
+				printf("---------------------precommit---------------------------------\n");
+				static uint64_t cyc_cnt = 0 ;
+				cyc_cnt = cyc_cnt +1;
+				printf("cyc_cnt is %ld\n", cyc_cnt);
+				printf("num_branches::%d\n",num_branches);
+				printf("%d -> %d\n",chk_buffer.Chkbuf_head,chk_buffer.Chkbuf_tail);
+				if(chk_buffer.Chkbuf_head<chk_buffer.Chkbuf_tail){
+					for(uint64_t i=chk_buffer.Chkbuf_head;i<chk_buffer.Chkbuf_tail;i++)
+						printf("|%d::%d| ",chk_buffer.Chk_buffer[i].uncomp_inst_cnt,i);
+					printf("\n");
+				}
+				else
+				{
+					for(uint64_t i=chk_buffer.Chkbuf_head;i<num_branches;i++)
+						printf("|%d::%d| ",chk_buffer.Chk_buffer[i].uncomp_inst_cnt,i);
+					printf("-|WR|-");
+					for(uint64_t i=0;i<chk_buffer.Chkbuf_tail;i++)
+						printf("|%d::%d| ",chk_buffer.Chk_buffer[i].uncomp_inst_cnt,i);
+					printf("\n");
+				};
 			//	printf("active_List.act_head: %d\n", active_List.act_head);
 			//printf("active_List.act_tail: %d\n", active_List.act_tail);
 			//printf("freelist.f_head: %d\n", free_List.f_head);
@@ -536,27 +572,21 @@ bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_s
 			{
 				return false;
 			}*/
-			if(chk_buffer.Chkbuf_size>1)
+			if((chk_buffer.Chkbuf_size>1)&&(chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].uncomp_inst_cnt==0))
 			{
 				chkpt_id=chk_buffer.Chkbuf_head;
 				num_loads=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].load_cnt;
 				num_stores=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].store_cnt;
-				num_branches=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].br_cnt;
+				num_branch=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].br_cnt;
 				amo=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].amo;
 				csr=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].csr;
 				exception=chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].exe;
-				if(chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].uncomp_inst==0)
-				{
-					return true;
-				}
-				else
-				{
-					return false;
-				}
-			   }
+				printf("Precommit::\n chkpt_id:%d\n num_loads :%d\n num_stores:%d\n num_branches:%d\n amo :%d\n csr:%d\n exception	:%d\n uncomp_inst_cnt :%d\n Chk_size: %d\n",chkpt_id,num_loads,num_stores,num_branches,amo,csr,exception,chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].uncomp_inst_cnt,chk_buffer.Chkbuf_size);
+				return true;
+			}
 			else
 			{
-				return false
+			return false;
 			}
 		}
 	//===============================MOD_CPR=============================================
@@ -564,7 +594,7 @@ bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_s
 //============================MOD_CPR======================
 void renamer::commit(uint64_t log_reg)
 {
-	//printf("--------------------------commit----------------------------------------\n");
+	printf("--------------------------commit----------------------------------------\n");
 	/*assert(active_List.act_size!=0);
 	assert(active_List.act_list[active_List.act_head].comp_bit==1);
 	assert(active_List.act_list[active_List.act_head].exe_bit!=1);
@@ -588,13 +618,14 @@ void renamer::commit(uint64_t log_reg)
 		{
 			active_List.act_head=0;
 		}*/
-	dec_usage_counter(rmt[log_reg]);
+	printf("commiting %d\n",log_reg);
+	dec_usage_counter(chk_buffer.Chk_buffer[chk_buffer.Chkbuf_head].chkpt_RMT[log_reg]);
 }
 //=======================MOD_CPR=============================
 //=======================MOD_CPR=============================
 void renamer::squash()
 {
-	//printf("--------------------------squash-----------------------------\n");
+	printf("--------------------------squash-----------------------------\n");
 	/*for(uint64_t i=0;i<num_log_regs;i++)
 	{
 		rmt[i]=amt[i];
@@ -610,7 +641,7 @@ void renamer::squash()
 		prf_unmapped_bit[i]=chk_buffer.Chk_buffer[oldest_chkpt_ID].chkpt_unmapped_bit[i];
 	}
 	//===========Traversing the chk_buffer in reverse order and performing reclamation of younger  checkpoints=========
-	for(uint64_t chk_iter=chk_buffer.Chkbuf_size-1;i>oldest_chkpt_ID;i--)
+	for(uint64_t chk_iter=chk_buffer.Chkbuf_size-1;chk_iter>oldest_chkpt_ID;chk_iter--)
 	{
 		for(uint64_t i=0;i<num_log_regs;i++)
 		{
@@ -651,17 +682,17 @@ void renamer::set_exception(uint64_t chkpt_ID)
 void renamer::set_load_violation(uint64_t AL_index)
 {
 	//printf("----------------------set_load_violation------------------------\n");
-	active_List.act_list[AL_index].load_vio=true;
+	//active_List.act_list[AL_index].load_vio=true;
 }
 void renamer::set_branch_misprediction(uint64_t AL_index)
 {
 	//printf("------------------set_branch_misprediction-----------------------\n");
-	active_List.act_list[AL_index].branch_mis=true;
+	//active_List.act_list[AL_index].branch_mis=true;
 }
 void renamer::set_value_misprediction(uint64_t AL_index)
 {
 	//printf("----------------------set_value_misprediction---------------------\n");
-	active_List.act_list[AL_index].val_mis=true;
+	//active_List.act_list[AL_index].val_mis=true;
 }
 bool renamer::get_exception(uint64_t chkpt_ID)
 {

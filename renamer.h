@@ -26,9 +26,6 @@ private:
 			uint64_t f_tail;
 			uint64_t f_size;
 		}free_List;
-	//===MOD_CPR_AV19===
-	void renamer::map(uint64_t phys_reg);
-	void renamer::unmap(uint64_t phys_reg);
 	//	
 	// Entry contains: physical register number
 	//
@@ -152,7 +149,8 @@ private:
 	// 1 to 64.
 	/////////////////////////////////////////////////////////////////////
 	uint64_t GBM;
-
+	void unmap(uint64_t phys_reg);
+	void map(uint64_t phys_reg);
 	/////////////////////////////////////////////////////////////////////
 	// Structure 8: Branch Checkpoints
 	//
@@ -172,11 +170,10 @@ private:
 	struct Checkpoints
 	{
 		uint64_t *chkpt_RMT;
-		uint64_t *chkpt_unmapped_bit;
+		bool *chkpt_unmapped_bit;
 		uint64_t uncomp_inst_cnt,load_cnt,store_cnt,br_cnt;
 		bool amo,csr,exe;
 	};
-	
 	struct Checkpoint_buffer
 	{
 		Checkpoints *Chk_buffer;
@@ -264,7 +261,8 @@ public:
 	// This function is used to get the branch mask for an instruction.
 	/////////////////////////////////////////////////////////////////////
 	uint64_t get_branch_mask();
-
+	void inc_usage_counter(uint64_t phys_reg);
+	void dec_usage_counter(uint64_t phys_reg);
 	/////////////////////////////////////////////////////////////////////
 	// This function is used to rename a single source register.
 	//
@@ -310,7 +308,7 @@ public:
 	// 3. checkpointed GBM
 	/////////////////////////////////////////////////////////////////////
 	void checkpoint();
-
+	void free_checkpoint();
 	//////////////////////////////////////////
 	// Functions related to Dispatch Stage. //
 	//////////////////////////////////////////
@@ -404,11 +402,11 @@ public:
 	// Write a value into the indicated physical register.
 	/////////////////////////////////////////////////////////////////////
 	void write(uint64_t phys_reg, uint64_t value);
-	uint64_t renamer::get_checkpoint_ID(bool load, bool store, bool branch, bool amo, bool csr)
+	uint64_t get_checkpoint_ID(bool load, bool store, bool branch, bool amo, bool csr);
 	/////////////////////////////////////////////////////////////////////
 	// Set the completed bit of the indicated entry in the Active List.
 	/////////////////////////////////////////////////////////////////////
-	void set_complete(uint64_t AL_index);
+	void set_complete(uint64_t chkpt_ID);
 
 	/////////////////////////////////////////////////////////////////////
 	// This function is for handling branch resolution.
@@ -495,10 +493,7 @@ public:
 	// * csr flag (whether or not instr. is a system instruction)
 	// * program counter of the instruction
 	/////////////////////////////////////////////////////////////////////
-	bool precommit(bool &completed,
-                       bool &exception, bool &load_viol, bool &br_misp, bool &val_misp,
-	               bool &load, bool &store, bool &branch, bool &amo, bool &csr,
-		       uint64_t &PC);
+	bool precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_stores, uint64_t &num_branches, bool &amo, bool &csr, bool &exception);
 
 	/////////////////////////////////////////////////////////////////////
 	// This function commits the instruction at the head of the Active List.
@@ -517,7 +512,7 @@ public:
 	// This is why you should assert() that it is valid to commit the
 	// head instruction and otherwise cause the simulator to exit.
 	/////////////////////////////////////////////////////////////////////
-	void commit();
+	void commit(uint64_t log_reg);
 
 	//////////////////////////////////////////////////////////////////////
 	// Squash the renamer class.
@@ -540,7 +535,7 @@ public:
 	// load violation bit, branch misprediction bit, and
 	// value misprediction bit, of the indicated entry in the Active List.
 	/////////////////////////////////////////////////////////////////////
-	void set_exception(uint64_t AL_index);
+	void set_exception(uint64_t chkpt_ID);
 	void set_load_violation(uint64_t AL_index);
 	void set_branch_misprediction(uint64_t AL_index);
 	void set_value_misprediction(uint64_t AL_index);

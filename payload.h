@@ -89,7 +89,7 @@ typedef struct {
                                 // fetched instructions.  Helpful for
                                 // logging (debug traces).
 	//=============MOD_CPR================
-	uint64_t chkpt_ID;
+	uint64_t chkpt_id;
 	//=============MOD_CPR================
 
    ////////////////////////

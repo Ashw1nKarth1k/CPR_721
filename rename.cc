@@ -51,14 +51,19 @@ void pipeline_t::rename2() {
    unsigned int i;
    unsigned int index;
    unsigned int bundle_dst, bundle_branch;
-
+	db_t* actual;
    // Stall the rename2 sub-stage if either:
    // (1) There isn't a current rename bundle.
    // (2) The Dispatch Stage is stalled.
    // (3) There aren't enough rename resources for the current rename bundle.
 
    if (!RENAME2[0].valid ||	// First stall condition: There isn't a current rename bundle.
-       DISPATCH[0].valid) {	// Second stall condition: The Dispatch Stage is stalled.
+       DISPATCH[0].valid) {
+		if(!RENAME2[0].valid)
+		printf("Rename STALL\n");
+		else{
+		printf("DISPATCH STALL\n");
+		}// Second stall condition: The Dispatch Stage is stalled.
       return;
    }
 
@@ -171,13 +176,16 @@ void pipeline_t::rename2() {
 	  if(IS_AMO(PAY.buf[index].flags)||IS_CSR(PAY.buf[index].flags))
 	  {
 		  REN->checkpoint();
+		  instr_renamed_since_last_checkpoint=0;
 	  }
 	  else if(PAY.buf[index].good_instruction)
 	  {
 		 actual = get_pipe()->peek(PAY.buf[index].db_index);
 		 if(actual->a_exception)
 		 {
+			  printf("----------------------creating checkpoint AMO/CSR----------------------\n");
 			 REN->checkpoint();
+			 instr_renamed_since_last_checkpoint=0;
 		 }
 	  }
 	  //======MOD_CPR============================
@@ -199,21 +207,33 @@ void pipeline_t::rename2() {
 		}
 		instr_renamed_since_last_checkpoint++;
 		//------getting checkpoint ID for the instruction----
-		PAY.buf[index].chkpt_ID=REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags),IS_STORE(PAY.buf[index].flags),IS_BRANCH(PAY.buf[index].flags),IS_AMO(PAY.buf[index].flags),IS_CSR(PAY.buf[index].flags));
+		PAY.buf[index].chkpt_id=REN->get_checkpoint_ID(IS_LOAD(PAY.buf[index].flags),IS_STORE(PAY.buf[index].flags),IS_BRANCH(PAY.buf[index].flags),IS_AMO(PAY.buf[index].flags),IS_CSR(PAY.buf[index].flags));
 	//========MOD_CPR==========================
 		//inserting checkpoint after renaming for Serialising Instructions and Branch Misprediction
 		if(IS_AMO(PAY.buf[index].flags)||IS_CSR(PAY.buf[index].flags))
 		{
+		   printf("----------------------creating checkpoint AMO/CSR----------------------\n");
 		  REN->checkpoint();
+		  instr_renamed_since_last_checkpoint=0;
 		}
 		else if(PAY.buf[index].good_instruction)
 		{
 		 actual = get_pipe()->peek(PAY.buf[index].db_index);
-		 if((actual->a_next_pc!=PAY.buf[index].next_pc))
+		 if((actual->a_next_pc!=PAY.buf[index].next_pc)||(instr_renamed_since_last_checkpoint==max_instr_bw_checkpoints))
 		 {
+			 if(instr_renamed_since_last_checkpoint==max_instr_bw_checkpoints)
+			 printf("----------------------creating checkpoint MAX_INST----------------------\n");
+			 else
+			 printf("----------------------creating checkpoint MISP----------------------\n");
 			 REN->checkpoint();
+			 instr_renamed_since_last_checkpoint=0;
 		 }
 		}
+		/*if(instr_renamed_since_last_checkpoint==max_instr_bw_checkpoints)
+		{
+			REN->checkpoint();
+			instr_renamed_since_last_checkpoint=0;
+		}*/
 	//=======MOD_CPR===========================
       // FIX_ME #3 END
 

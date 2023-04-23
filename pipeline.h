@@ -418,7 +418,7 @@ public:
 	void register_read(unsigned int lane_number);
 	void execute(unsigned int lane_number);
 	void writeback(unsigned int lane_number);
-	void retire(size_t& instret);
+	void retire(size_t& instret, size_t instret_limit);
 	void load_replay();
 	void set_exception(unsigned int al_index);
 	void set_load_violation(unsigned int al_index);
