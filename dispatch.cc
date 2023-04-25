@@ -92,10 +92,10 @@ void pipeline_t::dispatch() {
    assert(i <= dispatch_width);		// There cannot be more than "dispatch_width" instructions in the dispatch bundle.
 
    // FIX_ME #6 BEGIN
-	if(REN->stall_dispatch(bundle_inst))
-	{
-		return;
-	}
+	//if(REN->stall_dispatch(bundle_inst))
+	//{
+	//	return;
+	//}
    // FIX_ME #6 END
 
    //
@@ -148,7 +148,7 @@ void pipeline_t::dispatch() {
 	  bool isamo_disp=IS_AMO(PAY.buf[index].flags);
 	  bool iscsr_disp=IS_CSR(PAY.buf[index].flags);
 	  uint64_t PC_disp=PAY.buf[index].pc;
-	  PAY.buf[index].AL_index=REN->dispatch_inst(dest_valid_disp,logreg_disp,phyreg_disp,isload_disp,isstore_disp,isbranch_disp,isamo_disp,iscsr_disp,PC_disp);
+	 // PAY.buf[index].AL_index=REN->dispatch_inst(dest_valid_disp,logreg_disp,phyreg_disp,isload_disp,isstore_disp,isbranch_disp,isamo_disp,iscsr_disp,PC_disp);
       // FIX_ME #7 END
 
       // FIX_ME #8
@@ -234,7 +234,7 @@ void pipeline_t::dispatch() {
             // 3. As you can see in file pipeline.h, the IQ variable is the Issue Queue itself, NOT a pointer to it.
 
             // FIX_ME #10a BEGIN
-			IQ.dispatch(index,DISPATCH[i].branch_mask,PAY.buf[index].lane_id,PAY.buf[index].A_valid,A_ready,
+			IQ.dispatch(index,DISPATCH[i].chkpt_id,PAY.buf[index].lane_id,PAY.buf[index].A_valid,A_ready,
 			PAY.buf[index].A_phys_reg,PAY.buf[index].B_valid,B_ready,PAY.buf[index].B_phys_reg,PAY.buf[index].D_valid,
 			D_ready,PAY.buf[index].D_phys_reg);
             // FIX_ME #10a END
@@ -252,14 +252,14 @@ void pipeline_t::dispatch() {
 
             // *** FIX_ME #10b (part 1): Set completed bit in Active List.
             // FIX_ME #10b1 BEGIN
-			REN->set_complete(PAY.buf[index].AL_index);
+			REN->set_complete(PAY.buf[index].chkpt_id);
             // FIX_ME #10b1 END
 
             // Check if any previous pipeline stage posted an exception.
             if (PAY.buf[index].trap.valid()) {
                // *** FIX_ME #10b (part 2): Set exception bit in Active List.
                // FIX_ME #10b2 BEGIN
-			   REN->set_exception(PAY.buf[index].chkpt_ID);
+			   REN->set_exception(PAY.buf[index].chkpt_id);
                // FIX_ME #10b2 END
             }
             break;
@@ -273,13 +273,13 @@ void pipeline_t::dispatch() {
       if (IS_FP_OP(PAY.buf[index].flags)) {
 #ifndef RISCV_ENABLE_FPU
          // Floating-point ISA extension is disabled: illegal instruction exception.
-         REN->set_exception(PAY.buf[index].chkpt_ID);
+         REN->set_exception(PAY.buf[index].chkpt_id);
          PAY.buf[index].trap.post(trap_illegal_instruction());
 #else
          if (unlikely(!(get_state()->sr & SR_EF))) {
             // Floating-point ISA extension is enabled.
             // The pipeline cannot natively execute FP instructions, however: trap to software FP library.
-            REN->set_exception(PAY.buf[index].chkpt_ID);
+            REN->set_exception(PAY.buf[index].chkpt_id);
             PAY.buf[index].trap.post(trap_fp_disabled());
         }
 #endif
