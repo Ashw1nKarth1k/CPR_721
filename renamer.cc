@@ -436,6 +436,7 @@ void renamer::set_complete(uint64_t chkpt_ID)
 //========CPR_MOD==========================
 uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads, uint64_t &total_stores, uint64_t &total_branches)	
 {
+	printf("roll_back");
 	uint64_t squash_mask=0;
 	total_loads=0;
 	total_stores=0;
@@ -456,10 +457,6 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads, 
 		{
 			rmt[i]=chk_buffer.Chk_buffer[chkpt_id].chkpt_RMT[i];
 		}
-		for(uint64_t i=0;i<num_phys_regs;i++)
-		{
-			prf_unmapped_bit[i]=chk_buffer.Chk_buffer[chkpt_id].chkpt_unmapped_bit[i];
-		}
 		//====Generating squash mask========
 		for(uint64_t i=0;i<num_branches;i++)
 		{
@@ -477,19 +474,23 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads, 
 					dec_usage_counter(chk_buffer.Chk_buffer[i].chkpt_RMT[j]);
 				}
 				chk_buffer.Chkbuf_size--;
+				//=======condition for wrapping===========
 				chk_buffer.Chkbuf_tail--;
+				if(chk_buffer.Chkbuf_tail==-1){
+					chk_buffer.Chkbuf_tail=num_branches-1;
+				}
+				//=======UNCOMP _INST TOZERO===SAFETY
 			}
 			else if(i==chkpt_id)
 			{
 				//===resetting the cnts and flags of the rollback chkpt_ID
 				chk_buffer.Chk_buffer[i].uncomp_inst_cnt=0;
 				chk_buffer.Chk_buffer[i].load_cnt=0;
+				chk_buffer.Chk_buffer[i].store_cnt=0;
 				chk_buffer.Chk_buffer[i].br_cnt=0;
 				chk_buffer.Chk_buffer[i].csr=false;
 				chk_buffer.Chk_buffer[i].amo=false;
 				chk_buffer.Chk_buffer[i].exe=false;
-				chk_buffer.Chkbuf_size--;
-				chk_buffer.Chkbuf_tail--;
 			}
 		}
 		if(chk_buffer.Chkbuf_head<chkpt_id)
@@ -518,6 +519,15 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads, 
 			}
 		}
 	}
+	for(uint64_t i=0;i<num_phys_regs;i++)
+		{
+			prf_unmapped_bit[i]=chk_buffer.Chk_buffer[chkpt_id].chkpt_unmapped_bit[i];
+			if(prf_unmapped_bit[i]==1){
+				unmap(prf_unmapped_bit[i]);
+			}
+			//=================UNMPAP BITS RECLAMATION===========
+		}
+	Squash_mask=squash_mask;
 	return squash_mask;	
 }
 bool renamer::chkpt_is_valid(uint64_t chkpt_id)
@@ -788,6 +798,10 @@ void renamer::squash()
 	for(uint64_t i=0;i<num_phys_regs;i++)
 	{
 		prf_unmapped_bit[i]=chk_buffer.Chk_buffer[oldest_chkpt_ID].chkpt_unmapped_bit[i];
+		/*if(prf_unmapped_bit[i]==1){
+				unmap(prf_unmapped_bit[i]);
+			}*/
+		//============unmap reclaimm=================
 	}
 	//===========Traversing the chk_buffer in reverse order and performing reclamation of younger  checkpoints=========
 	for(uint64_t chk_iter=chk_buffer.Chkbuf_size-1;chk_iter>oldest_chkpt_ID;chk_iter--)
@@ -797,6 +811,17 @@ void renamer::squash()
 			dec_usage_counter(chk_buffer.Chk_buffer[chk_iter].chkpt_RMT[i]);
 		}
 	}
+	for(uint64_t i=0;i<num_phys_regs;i++)
+	{
+		prf_usage_counter[i]=0;
+		prf_unmapped_bit[i]=1;
+	}
+	for(uint64_t i=0;i<num_log_regs;i++)
+	{
+		prf_usage_counter[rmt[i]]=1;
+		prf_unmapped_bit[rmt[i]]=0;
+	}
+	
 	//================Initialising all counters to 0 and deasserting flags
 	chk_buffer.Chk_buffer[oldest_chkpt_ID].uncomp_inst_cnt=0;
 	chk_buffer.Chk_buffer[oldest_chkpt_ID].load_cnt=0;
@@ -818,6 +843,9 @@ void renamer::squash()
 	{
 		prf_rdy_bit[i]=1;
 	}
+	free_List.f_head=0;
+	free_List.f_tail=0;
+	free_List.f_size=num_phys_regs-num_log_regs;
 
 }
 //========================MOD_CPR====================================

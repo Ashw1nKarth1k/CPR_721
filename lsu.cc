@@ -642,8 +642,10 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 	/////////////////////////////
 	// Restore LQ.
 	/////////////////////////////
-
+//===================tail to old tail=============================
 	// Restore tail state.
+	uint64_t old_lq_tail=lq_tail;
+	uint64_t rc_lq_tail=recover_lq_tail;
 	lq_tail = recover_lq_tail;
 	lq_tail_phase = recover_lq_tail_phase;
 
@@ -664,10 +666,10 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 	for (unsigned int i = 0, j = lq_head; i < lq_length; i++, j = MOD_S((j+1), lq_size)) {
 		LQ[j].valid = true;
 	}
-	for (unsigned int i = 0; i < lq_size; i++) {
-		if((LQ[i].valid == false)&&(LQ[i].addr_avail))
+	/*for (unsigned int i = temp; i < lq_tail; i++) {
+		if((LQ[i].valid == false)&&(LQ[i].addr_avail)&&((proc->REN->Squash_mask>>(LQ[i].chkpt_id))&0x1))
 		{
-			if(proc->PAY.buf[LQ[i].pay_index].A_valid)
+			/*if(proc->PAY.buf[LQ[i].pay_index].A_valid)
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
 			if(proc->PAY.buf[LQ[i].pay_index].B_valid)
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].B_phys_reg);
@@ -675,8 +677,16 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].D_phys_reg);
 			if(proc->PAY.buf[LQ[i].pay_index].C_valid)
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].C_phys_reg);
-		}
-	}
+		}*/
+	/*while (old_lq_tail != rc_lq_tail){
+        if (LQ[rc_lq_tail].valid){
+            if ((LQ[rc_lq_tail].addr_avail) && (!LQ[rc_lq_tail].value_avail)){
+                if (proc->PAY.buf[LQ[rc_lq_tail].pay_index].C_valid){
+                    proc->REN->dec_usage_counter(proc->PAY.buf[LQ[rc_lq_tail].pay_index].C_phys_reg);
+                }
+            }
+        }
+	}*/
 	/////////////////////////////
 	// Restore SQ.
 	/////////////////////////////
@@ -701,19 +711,6 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 
 	for (unsigned int i = 0, j = sq_head; i < sq_length; i++, j = MOD_S((j+1), sq_size)) {
 		SQ[j].valid = true;
-	}
-	for (unsigned int i = 0; i < sq_size; i++) {
-		if((SQ[i].valid == false)&&(SQ[i].addr_avail))
-		{
-			if(proc->PAY.buf[SQ[i].pay_index].A_valid)
-				proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].A_phys_reg);
-			if(proc->PAY.buf[SQ[i].pay_index].B_valid)
-				proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].B_phys_reg);
-			if(proc->PAY.buf[SQ[i].pay_index].D_valid)
-				proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].D_phys_reg);
-			if(proc->PAY.buf[SQ[i].pay_index].C_valid)
-				proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].C_phys_reg);
-		}
 	}
 }
 
@@ -856,12 +853,12 @@ void lsu::flush() {
 		LQ[i].valid = false;
 		if(LQ[i].addr_avail && !LQ[i].value_avail)
 		{
-			if(proc->PAY.buf[LQ[i].pay_index].A_valid)
+			/*if(proc->PAY.buf[LQ[i].pay_index].A_valid)
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].A_phys_reg);
 			if(proc->PAY.buf[LQ[i].pay_index].B_valid)
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].B_phys_reg);
 			if(proc->PAY.buf[LQ[i].pay_index].D_valid)
-				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].D_phys_reg);
+				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].D_phys_reg);*/
 			if(proc->PAY.buf[LQ[i].pay_index].C_valid)
 				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].C_phys_reg);
 		}
@@ -876,7 +873,7 @@ void lsu::flush() {
 
 	for (unsigned int i = 0; i < sq_size; i++) {
 		SQ[i].valid = false;
-		if(SQ[i].addr_avail && !SQ[i].value_avail)
+		/*if(SQ[i].addr_avail && !SQ[i].value_avail)
 		{
 			if(proc->PAY.buf[SQ[i].pay_index].A_valid)
 				proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].A_phys_reg);
@@ -886,7 +883,7 @@ void lsu::flush() {
 				proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].D_phys_reg);
 			if(proc->PAY.buf[SQ[i].pay_index].C_valid)
 				proc->REN->dec_usage_counter(proc->PAY.buf[SQ[i].pay_index].C_phys_reg);
-		}
+		}*/
 	}
 }
 

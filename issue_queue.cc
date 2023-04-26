@@ -298,7 +298,7 @@ void issue_queue::clear_branch_bit(unsigned int branch_ID) {
 //=====MOD_CPR=============
 void issue_queue::squash(unsigned int squash_mask) {
 	for (unsigned int i = 0; i < size; i++) {
-		if (q[i].valid &&(squash_mask<<(q[i].chkpt_id)&0x1) /*BIT_IS_ONE(q[i].chkpt_id, squash_mask)*/) {
+		if (q[i].valid &&((squash_mask>>(q[i].chkpt_id))&0x1)) /*BIT_IS_ONE(q[i].chkpt_id, squash_mask)*/ {
 			if(proc->PAY.buf[q[i].index].A_valid)
 			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
 			if(proc->PAY.buf[q[i].index].B_valid)
